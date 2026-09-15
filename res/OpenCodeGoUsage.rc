@@ -1,0 +1,32 @@
+// OpenCodeGoUsage.rc
+//
+// 本文件只放对话框的布局与控件，所有可见文案都在 OptionsDlg.cpp 的 WM_INITDIALOG 里
+// 用中文设置。原因：rc.exe 对 UTF-8 源文件的代码页处理受系统区域设置影响，把中文直接写进来
+// 在别人的机器上可能变成乱码；放进 C++（配合 /utf-8）则完全确定。
+//
+// 资源文件名与 DLL 同名，被宿主从 plugins 目录加载。
+
+#include <windows.h>
+#include "../res/resource.h"
+
+IDD_OPTIONS DIALOGEX 0, 0, 320, 221
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "OpenCode Go Usage"
+FONT 9, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "API Key",IDC_STATIC_KEY,10,10,300,8
+    EDITTEXT        IDC_EDIT_KEY,10,20,300,13,ES_AUTOHSCROLL
+    LTEXT           "source",IDC_STATIC_KEY_SOURCE,10,36,300,16
+    LTEXT           "hint",IDC_STATIC_HINT,10,54,300,8
+    LTEXT           "hint2",IDC_STATIC_HINT2,10,64,300,8
+    LTEXT           "Interval",IDC_STATIC_INTERVAL,10,80,100,8
+    EDITTEXT        IDC_EDIT_INTERVAL,10,90,50,13,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "30-3600",IDC_STATIC_INTERVAL_RANGE,64,92,56,8
+    LTEXT           "Proxy",IDC_STATIC_PROXY,130,80,180,8
+    EDITTEXT        IDC_EDIT_PROXY,130,90,180,13,ES_AUTOHSCROLL
+    LTEXT           "proxy hint",IDC_STATIC_PROXY_HINT,130,106,180,8
+    PUSHBUTTON      "Test",IDC_BTN_TEST,10,112,80,15
+    EDITTEXT        IDC_EDIT_RESULT,10,134,300,58,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,200,200,50,15
+    PUSHBUTTON      "Cancel",IDCANCEL,256,200,54,15
+END

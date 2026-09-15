@@ -1,0 +1,6 @@
+obj/
+tests/*.exe
+tests/*.obj
+*.user
+*.suo
+.vs/
