@@ -44,13 +44,18 @@ COpenCodeGoPlugin::COpenCodeGoPlugin()
         m_items.emplace_back(new CUsageItem(id, name, label, sample, window, kind));
     };
 
-    add(L"ocg5hused", L"5小时已用", L"5h",   L"100%",   ocg::WIN_ROLLING, CUsageItem::KIND_USED);
-    add(L"ocg5hleft", L"5小时剩余", L"5h余", L"100%",   ocg::WIN_ROLLING, CUsageItem::KIND_LEFT);
-    add(L"ocgwused",  L"本周已用",  L"周",   L"100%",   ocg::WIN_WEEKLY,  CUsageItem::KIND_USED);
-    add(L"ocgwleft",  L"本周剩余",  L"周余", L"100%",   ocg::WIN_WEEKLY,  CUsageItem::KIND_LEFT);
-    add(L"ocgmused",  L"本月已用",  L"月",   L"100%",   ocg::WIN_MONTHLY, CUsageItem::KIND_USED);
-    add(L"ocgmleft",  L"本月剩余",  L"月余", L"100%",   ocg::WIN_MONTHLY, CUsageItem::KIND_LEFT);
-    add(L"ocgreset",  L"重置倒计时", L"重置", L"23h59m", ocg::WIN_ROLLING, CUsageItem::KIND_COUNTDOWN);
+    // 每个窗口三条：已用 / 剩余 / 该窗口自己的重置倒计时。
+    // 倒计时的示例文本是各自窗口的最大值（5h 窗口最多 4h59m、周最多 6d23h、月最多 30d23h），
+    // 宿主拿它预留任务栏宽度。
+    add(L"ocg5hused",  L"5小时已用", L"5h",   L"100%",   ocg::WIN_ROLLING, CUsageItem::KIND_USED);
+    add(L"ocg5hleft",  L"5小时剩余", L"5h余", L"100%",   ocg::WIN_ROLLING, CUsageItem::KIND_LEFT);
+    add(L"ocg5hreset", L"5小时重置", L"5h重", L"4h59m",  ocg::WIN_ROLLING, CUsageItem::KIND_COUNTDOWN);
+    add(L"ocgwused",   L"本周已用",  L"周",   L"100%",   ocg::WIN_WEEKLY,  CUsageItem::KIND_USED);
+    add(L"ocgwleft",   L"本周剩余",  L"周余", L"100%",   ocg::WIN_WEEKLY,  CUsageItem::KIND_LEFT);
+    add(L"ocgwreset",  L"本周重置",  L"周重", L"6d23h",  ocg::WIN_WEEKLY,  CUsageItem::KIND_COUNTDOWN);
+    add(L"ocgmused",   L"本月已用",  L"月",   L"100%",   ocg::WIN_MONTHLY, CUsageItem::KIND_USED);
+    add(L"ocgmleft",   L"本月剩余",  L"月余", L"100%",   ocg::WIN_MONTHLY, CUsageItem::KIND_LEFT);
+    add(L"ocgmreset",  L"本月重置",  L"月重", L"30d23h", ocg::WIN_MONTHLY, CUsageItem::KIND_COUNTDOWN);
 }
 
 IPluginItem* COpenCodeGoPlugin::GetItem(int index)
@@ -158,10 +163,10 @@ const wchar_t* COpenCodeGoPlugin::GetInfo(PluginInfoIndex index)
     switch (index)
     {
     case TMI_NAME:        return L"OpenCode Go 用量";
-    case TMI_DESCRIPTION: return L"显示 OpenCode Go 订阅的 5 小时 / 每周 / 每月用量与余量。数据来自 opencode.ai 的用量接口，需要在插件选项里填一个 Go 的 API Key（sk- 开头）。";
+    case TMI_DESCRIPTION: return L"显示 OpenCode Go 订阅的 5 小时 / 每周 / 每月用量、余量与该窗口的重置倒计时。数据来自 opencode.ai 的用量接口，需要在插件选项里填一个 Go 的 API Key（sk- 开头）。";
     case TMI_AUTHOR:      return L"wiggins";
     case TMI_COPYRIGHT:   return L"";
-    case TMI_VERSION:     return L"1.0";
+    case TMI_VERSION:     return L"1.1";
     case TMI_URL:         return L"";
     default:              return L"";
     }

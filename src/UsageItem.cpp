@@ -1,6 +1,5 @@
 #include "UsageItem.h"
-
-#include <climits>
+#include "GraphValue.h"
 
 namespace ocg
 {
@@ -19,6 +18,19 @@ namespace ocg
         return m_return.c_str();
     }
 
+    int CUsageItem::IsDrawResourceUsageGraph() const
+    {
+        // 没有数据时返回 0：宿主拿到 0 值仍然会把虚线框画出来，只剩一个空框配 "--" 像坏了
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_has_graph ? 1 : 0;
+    }
+
+    float CUsageItem::GetResourceUsageGraphValue() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_graph;
+    }
+
     int CUsageItem::OnMouseEvent(MouseEventType type, int /*x*/, int /*y*/, void* /*hWnd*/, int /*flag*/)
     {
         if (type == MT_LCLICKED)
@@ -33,11 +45,15 @@ namespace ocg
     void CUsageItem::UpdateFrom(const UsageSnapshot& snap)
     {
         std::wstring text;
-        bool has_value = false;
+        float graph = 0.0f;
+        bool has_graph = false;
+
+        // 每个条目只关心自己那个窗口（倒计时也分 5h / 周 / 月三个，不再跨窗口取"最近的一次"）
+        const WindowState& w = snap.win[m_window];
 
         if (m_kind == KIND_COUNTDOWN)
         {
-            if (!snap.ever_ok)
+            if (!snap.ever_ok || !w.found || !w.have_reset)
             {
                 text = L"--";
             }
@@ -45,39 +61,12 @@ namespace ocg
             {
                 SYSTEMTIME now{};
                 ::GetLocalTime(&now);
-
-                bool any_positive = false;
-                long long best_positive = LLONG_MAX;    // 最近的"还没到"的重置
-                long long least_overdue = LLONG_MIN;    // 全都过期时取最接近的那个
-                for (int i = 0; i < WIN_COUNT; ++i)
-                {
-                    if (!snap.win[i].have_reset)
-                        continue;
-                    has_value = true;
-                    const long long d = tmu::SecondsBetween(now, snap.win[i].reset_local);
-                    if (d > 0)
-                    {
-                        any_positive = true;
-                        if (d < best_positive)
-                            best_positive = d;
-                    }
-                    else if (d > least_overdue)
-                    {
-                        least_overdue = d;
-                    }
-                }
-
-                if (any_positive)
-                    text = tmu::FormatCountdown(best_positive);
-                else if (has_value)
-                    text = L"0m";       // 数据陈旧或刚好到点
-                else
-                    text = L"--";
+                // 数据陈旧时重置时刻可能已经过去，FormatCountdown 对 <=0 秒返回 "0m"
+                text = tmu::FormatCountdown(tmu::SecondsBetween(now, w.reset_local));
             }
         }
         else
         {
-            const WindowState& w = snap.win[m_window];
             if (!snap.ever_ok || !w.found)
             {
                 text = L"--";
@@ -85,14 +74,20 @@ namespace ocg
             else if (m_kind == KIND_USED)
             {
                 text = std::to_wstring(w.used) + L"%";
+                graph = GraphValueFromPercent(w.used);
+                has_graph = true;
             }
             else
             {
                 text = std::to_wstring(100 - w.used) + L"%";
+                graph = GraphValueFromPercent(100 - w.used);
+                has_graph = true;
             }
         }
 
         std::lock_guard<std::mutex> lock(m_mutex);
         m_value = text;
+        m_graph = graph;
+        m_has_graph = has_graph;
     }
 }

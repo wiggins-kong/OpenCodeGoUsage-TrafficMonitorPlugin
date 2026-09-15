@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cwctype>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -141,9 +142,9 @@ int wmain(int argc, wchar_t** argv)
         ++itemCount;
     }
     PrintUtf8("   共 %d 个条目\n", itemCount);
-    if (itemCount != 7)
+    if (itemCount != 9)
     {
-        PrintUtf8("   [FAIL] 期望 7 个条目\n");
+        PrintUtf8("   [FAIL] 期望 9 个条目（3 个窗口 × 已用/剩余/重置倒计时）\n");
         return 1;
     }
     if (plugin->GetItem(itemCount) != nullptr || plugin->GetItem(-1) != nullptr)
@@ -189,6 +190,45 @@ int wmain(int argc, wchar_t** argv)
     ::WaitForSingleObject(worker, 5000);
     ::CloseHandle(worker);
 
+    PrintUtf8("\n== 6b) 占用图（宿主取 GetResourceUsageGraphValue()*100 画虚线框+填充条）\n");
+    {
+        int bad = 0;
+        for (int i = 0; i < itemCount; ++i)
+        {
+            IPluginItem* item = plugin->GetItem(i);
+            const std::string text = ToUtf8(item->GetItemValueText());
+            const bool draws = item->IsDrawResourceUsageGraph() != 0;
+            const int bar = static_cast<int>(item->GetResourceUsageGraphValue() * 100.0f);
+
+            std::string note;
+            bool ok = true;
+            if (text.find('%') != std::string::npos)
+            {
+                // 有数据的百分比条目：条的长度必须等于文字里的数字（53、59 是 float 陷阱）
+                const int shown = std::atoi(text.c_str());
+                char buf[64];
+                _snprintf_s(buf, sizeof(buf), _TRUNCATE, "文字 %d%% / 条 %d%%", shown, bar);
+                note = buf;
+                ok = draws && bar == shown;
+            }
+            else
+            {
+                // 没有数据（--）或者倒计时条目：不该画图，宿主对 0 值仍会画一个空虚线框
+                note = draws ? "不该画却画了" : "不画（符合预期）";
+                ok = !draws && bar == 0;
+            }
+            PrintUtf8("   [%d] id=%-10s %s%s\n", i, ToUtf8(item->GetItemId()).c_str(), note.c_str(),
+                      ok ? "  OK" : "  [FAIL]");
+            if (!ok)
+                ++bad;
+        }
+        if (bad != 0)
+        {
+            PrintUtf8("   [FAIL] %d 个条目的占用图不符合预期\n", bad);
+            return 1;
+        }
+    }
+
     PrintUtf8("\n== 7) tooltip（宿主会把它拼进任务栏提示）\n");
     const wchar_t* tip = plugin->GetTooltipInfo();
     if (tip == nullptr)
@@ -208,6 +248,87 @@ int wmain(int argc, wchar_t** argv)
             if (nl == t.size())
                 break;
             start = nl + 2;
+        }
+    }
+
+    PrintUtf8("\n== 7b) 三个重置倒计时条目 vs tooltip 里各窗口自己的倒计时\n");
+    {
+        // 条目值取错窗口（比如三个都读 rolling）在这里会立刻暴露：
+        // tooltip 第 1~3 行固定是 5h / 周 / 月，行尾的 "（2h13m 后）" 就是该窗口的倒计时
+        struct ResetItem
+        {
+            const wchar_t* id;
+            const char* line_prefix;    // 该窗口在 tooltip 里的行首（含全角冒号）
+        };
+        const ResetItem resets[3] = {
+            { L"ocg5hreset", "5h：" },
+            { L"ocgwreset",  "周：" },
+            { L"ocgmreset",  "月：" },
+        };
+
+        std::vector<std::string> lines;
+        {
+            const std::string t = ToUtf8(tip);
+            size_t start = 0;
+            while (start <= t.size())
+            {
+                size_t nl = t.find("\r\n", start);
+                if (nl == std::string::npos)
+                    nl = t.size();
+                lines.push_back(t.substr(start, nl - start));
+                if (nl == t.size())
+                    break;
+                start = nl + 2;
+            }
+        }
+
+        int bad = 0;
+        for (int i = 0; i < 3; ++i)
+        {
+            const size_t li = (size_t)i + 1;
+            const std::string line = (li < lines.size()) ? lines[li] : std::string();
+
+            IPluginItem* item = nullptr;
+            for (int k = 0; k < itemCount; ++k)
+            {
+                IPluginItem* cand = plugin->GetItem(k);
+                if (cand != nullptr && wcscmp(cand->GetItemId(), resets[i].id) == 0)
+                {
+                    item = cand;
+                    break;
+                }
+            }
+
+            const std::string value = (item != nullptr) ? ToUtf8(item->GetItemValueText())
+                                                        : std::string("<没有这个条目>");
+
+            // 从 "（" 到 " 后）" 之间取该窗口的倒计时；没有重置时刻时这段不存在
+            std::string tip_cd;
+            const size_t open = line.find("（");
+            const size_t close = line.find(" 后）");
+            if (open != std::string::npos && close != std::string::npos && close > open + 3)
+                tip_cd = line.substr(open + 3, close - open - 3);
+
+            bool ok = item != nullptr;
+            if (ok && line.rfind(resets[i].line_prefix, 0) != 0)
+            {
+                PrintUtf8("   [FAIL] tooltip 第 %d 行不是「%s」开头的窗口行：%s\n",
+                          i + 1, resets[i].line_prefix, line.c_str());
+                ++bad;
+                continue;
+            }
+            if (ok)
+                ok = (tip_cd == value) || (tip_cd.empty() && value == "--");
+
+            PrintUtf8("   [%d] %-10s 条目=%-7s tooltip=%-7s%s\n", i, ToUtf8(resets[i].id).c_str(),
+                      value.c_str(), tip_cd.empty() ? "(无)" : tip_cd.c_str(), ok ? "  OK" : "  [FAIL]");
+            if (!ok)
+                ++bad;
+        }
+        if (bad != 0)
+        {
+            PrintUtf8("   [FAIL] 倒计时条目与 tooltip 对不上（没数据时两边都该是 -- / 空）\n");
+            return 1;
         }
     }
 

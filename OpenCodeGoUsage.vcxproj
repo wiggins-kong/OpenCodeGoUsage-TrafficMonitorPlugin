@@ -144,6 +144,7 @@
   <ItemGroup>
     <ClInclude Include="include\PluginInterface.h" />
     <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\GraphValue.h" />
     <ClInclude Include="src\JsonScan.h" />
     <ClInclude Include="src\OptionsDlg.h" />
     <ClInclude Include="src\Plugin.h" />

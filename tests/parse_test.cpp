@@ -2,6 +2,7 @@
 // 编译： cl /nologo /EHsc /std:c++17 /utf-8 /W4 /I..\src parse_test.cpp ..\src\UsageParse.cpp
 #include "../src/UsageParse.h"
 #include "../src/JsonScan.h"
+#include "../src/GraphValue.h"
 
 #include <cstdio>
 #include <string>
@@ -205,6 +206,20 @@ static void TestJsonScanBasics()
     CHECK_EQ_INT(i, s.size());
 }
 
+// 占用图的取值：宿主是 int(value * 100)，float 误差会让朴素的 n/100.0f 在 53、59 上少 1
+static void TestGraphValue()
+{
+    std::printf("TestGraphValue\n");
+    for (int n = 0; n <= 100; ++n)
+    {
+        const float v = ocg::GraphValueFromPercent(n);
+        CHECK_EQ_INT((int)(v * 100.0f), n);         // 宿主现在的写法：截断
+        CHECK_EQ_INT((int)(v * 100.0f + 0.5f), n);  // 万一宿主改成四舍五入
+    }
+    CHECK_EQ_INT((int)(ocg::GraphValueFromPercent(-5) * 100.0f), 0);
+    CHECK_EQ_INT((int)(ocg::GraphValueFromPercent(120) * 100.0f), 100);
+}
+
 int main()
 {
     TestOkBody();
@@ -214,6 +229,7 @@ int main()
     TestEscapesInMessage();
     TestGarbageAndPartial();
     TestJsonScanBasics();
+    TestGraphValue();
 
     std::printf("\n%d/%d 通过%s\n", g_total - g_failed, g_total, g_failed ? "  <<< 有失败" : "");
     return g_failed ? 1 : 0;
