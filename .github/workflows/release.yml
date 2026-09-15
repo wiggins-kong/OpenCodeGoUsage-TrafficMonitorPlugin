@@ -3,6 +3,7 @@ name: Release
 # 每当 changelog 出现新版本就自动打 tag 并发一个 GitHub Release，
 # release note 取自 changelog.md 中该版本的段落。
 # 也支持手动推 v* 标签触发（例如回补历史版本）。
+# Release 附件里带对应版本编译出来的 OpenCodeGoUsage.dll（x64，静态 CRT）。
 
 on:
   push:
@@ -14,18 +15,19 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Determine version
+        shell: bash
         id: ver
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
-            VERSION=$(grep -m1 -oP '^## \[\K[^\]]+' changelog.md || true)
+            VERSION=$(sed -n 's/^## \[\([^]]*\)\].*/\1/p' changelog.md | head -n1)
           fi
           if [ -z "$VERSION" ]; then
             echo "changelog.md 里没有找到版本号（形如 '## [x.y] - YYYY-MM-DD'）"
@@ -34,6 +36,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Extract release notes from changelog
+        shell: bash
         id: notes
         run: |
           set -euo pipefail
@@ -48,17 +51,41 @@ jobs:
             exit 1
           fi
 
+      - name: Run unit tests
+        shell: cmd
+        run: |
+          cd tests && build_and_run.bat
+
+      - name: Build DLL (x64 Release)
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
+          if not defined VSPATH (
+            echo [ERROR] no Visual Studio with C++ tools found
+            exit /b 1
+          )
+          "%VSPATH%\MSBuild\Current\Bin\MSBuild.exe" OpenCodeGoUsage.sln /p:Configuration=Release /p:Platform=x64 /p:TrafficMonitorPluginDir=%CD%\obj\deploy
+          if errorlevel 1 exit /b 1
+          dir obj\deploy
+
       - name: Create release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          if gh release view "v$VERSION" > /dev/null 2>&1; then
-            echo "Release v$VERSION 已存在，跳过"
-            exit 0
+          ASSET="obj/deploy/OpenCodeGoUsage.dll"
+          if [ ! -f "$ASSET" ]; then
+            echo "找不到编译产物 $ASSET"
+            exit 1
           fi
-          gh release create "v$VERSION" \
-            --title "v$VERSION" \
-            --notes-file release_notes.md \
-            --target "$GITHUB_SHA"
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION 已存在，补传 DLL"
+            gh release upload "v$VERSION" "$ASSET" --clobber
+          else
+            gh release create "v$VERSION" "$ASSET" \
+              --title "v$VERSION" \
+              --notes-file release_notes.md \
+              --target "$GITHUB_SHA"
+          fi
