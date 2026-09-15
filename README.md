@@ -137,6 +137,12 @@ tests\build_host_sim.bat     编译并运行 host_sim.exe —— 模拟宿主加
   若某个窗口已被限流，插件只在 tooltip 里标注，不会尝试绕过。
 - 界面只有中文。
 
+## 另见
+
+- [changelog.md](changelog.md) —— 更新日志（当前 v1.0）
+- [development.md](development.md) —— 开发交接文档：架构、环境约束、验证清单、
+  接口契约、下一步可做的事、明确不要做的事
+
 ## 出处与许可
 
 - `include/PluginInterface.h` 拷贝自 [zhongyang219/TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)
