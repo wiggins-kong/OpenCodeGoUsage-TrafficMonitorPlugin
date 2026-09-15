@@ -1,0 +1,64 @@
+name: Release
+
+# 每当 changelog 出现新版本就自动打 tag 并发一个 GitHub Release，
+# release note 取自 changelog.md 中该版本的段落。
+# 也支持手动推 v* 标签触发（例如回补历史版本）。
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(grep -m1 -oP '^## \[\K[^\]]+' changelog.md || true)
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "changelog.md 里没有找到版本号（形如 '## [x.y] - YYYY-MM-DD'）"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from changelog
+        id: notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          awk -v heading="## [$VERSION]" '
+            index($0, heading) == 1 {inblock = 1; next}
+            inblock && /^## \[/ {exit}
+            inblock {print}
+          ' changelog.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "changelog.md 里没有版本 $VERSION 的段落"
+            exit 1
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION 已存在，跳过"
+            exit 0
+          fi
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes-file release_notes.md \
+            --target "$GITHUB_SHA"
