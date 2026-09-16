@@ -1,6 +1,5 @@
 #include "Config.h"
 #include "PluginGlobals.h"
-#include "JsonScan.h"
 
 #include <vector>
 
@@ -91,85 +90,5 @@ namespace ocg
         WriteIniValue(path, kIniKeyApiKey, s.api_key);
         WriteIniValue(path, kIniKeyInterval, std::to_wstring(s.interval_sec));
         WriteIniValue(path, kIniKeyProxy, s.proxy);
-    }
-
-    std::wstring KeyFromEnv(std::wstring& source)
-    {
-        wchar_t buf[512]{};
-        const DWORD n = ::GetEnvironmentVariableW(L"OPENCODE_API_KEY", buf, _countof(buf));
-        if (n == 0 || n >= _countof(buf))
-        {
-            source = L"OPENCODE_API_KEY 未设置";
-            return std::wstring();
-        }
-        source = L"环境变量 OPENCODE_API_KEY";
-        return tmu::Trim(buf);
-    }
-
-    std::wstring KeyFromAuthJson(std::wstring& source)
-    {
-        const std::wstring path = tmu::ExpandEnv(L"%USERPROFILE%\\.local\\share\\opencode\\auth.json");
-        std::string json;
-        if (!tmu::ReadWholeFile(path, json) || json.empty())
-        {
-            source = L"没有 auth.json";
-            return std::wstring();
-        }
-
-        using namespace jsonscan;
-        const Pos goPos = FindMember(json, 0, json.size(), "opencode-go");
-        if (goPos == kNotFound)
-        {
-            source = L"auth.json 里没有 opencode-go";
-            return std::wstring();
-        }
-        const Pos goEnd = CompositeEnd(json, goPos);
-        const Pos keyPos = FindMember(json, goPos, goEnd, "key");
-        std::string key;
-        if (keyPos == kNotFound || !GetString(json, keyPos, key) || key.empty())
-        {
-            source = L"auth.json 的 opencode-go 没有 key";
-            return std::wstring();
-        }
-        source = L"auth.json 的 opencode-go.key";
-        return tmu::Trim(tmu::Utf8ToWide(key));
-    }
-
-    KeyInfo Config::ResolveKey() const
-    {
-        KeyInfo info;
-
-        // 1) 用户在选项对话框里填的
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            if (!m_settings.api_key.empty())
-            {
-                info.key = m_settings.api_key;
-                info.source = L"插件选项里填写的 Key";
-                return info;
-            }
-        }
-
-        // 2) 环境变量
-        std::wstring src;
-        std::wstring key = KeyFromEnv(src);
-        if (!key.empty())
-        {
-            info.key = key;
-            info.source = L"环境变量 OPENCODE_API_KEY";
-            return info;
-        }
-
-        // 3) auth.json
-        key = KeyFromAuthJson(src);
-        if (!key.empty())
-        {
-            info.key = key;
-            info.source = L"auth.json（opencode-go）";
-            return info;
-        }
-
-        info.source = L"未配置（" + src + L"）";
-        return info;
     }
 }

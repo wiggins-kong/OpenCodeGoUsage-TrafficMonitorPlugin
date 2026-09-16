@@ -11,7 +11,7 @@ HMODULE g_hModule = nullptr;
 
 namespace
 {
-    const wchar_t* const kConsoleUrl = L"https://opencode.ai/console";
+    const wchar_t* const kConsoleUrl = L"https://opencode.ai/auth";
     const wchar_t* const kWindowNames[ocg::WIN_COUNT] = { L"5h", L"周", L"月" };
 
     const wchar_t* const kCmdRefresh = L"立即刷新";
@@ -166,7 +166,7 @@ const wchar_t* COpenCodeGoPlugin::GetInfo(PluginInfoIndex index)
     case TMI_DESCRIPTION: return L"显示 OpenCode Go 订阅的 5 小时 / 每周 / 每月用量、余量与该窗口的重置倒计时。数据来自 opencode.ai 的用量接口，需要在插件选项里填一个 Go 的 API Key（sk- 开头）。";
     case TMI_AUTHOR:      return L"wiggins";
     case TMI_COPYRIGHT:   return L"";
-    case TMI_VERSION:     return L"1.1";
+    case TMI_VERSION:     return L"1.2";
     case TMI_URL:         return L"";
     default:              return L"";
     }

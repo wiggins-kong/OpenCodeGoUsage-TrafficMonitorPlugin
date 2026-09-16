@@ -6,7 +6,6 @@
 #define IDC_STATIC_KEY              1001
 #define IDC_EDIT_KEY                1002
 #define IDC_STATIC_KEY_SOURCE       1003
-#define IDC_STATIC_HINT             1004
 #define IDC_STATIC_HINT2            1005
 #define IDC_STATIC_INTERVAL         1006
 #define IDC_EDIT_INTERVAL           1007

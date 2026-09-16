@@ -1,4 +1,4 @@
-// Config.h —— 插件设置与 API Key 解析
+// Config.h —— 插件设置
 #pragma once
 
 #include "TmCommon.h"
@@ -10,15 +10,9 @@ namespace ocg
 {
     struct PluginSettings
     {
-        std::wstring api_key;       // 用户在选项对话框里填的；空 = 走环境变量/auth.json
+        std::wstring api_key;       // 用户在选项对话框里填的；空 = 未配置
         int interval_sec = 60;      // 刷新间隔，30..3600
         std::wstring proxy;         // 空 = 自动（环境变量 -> 系统代理 -> 直连）；"direct" = 直连；其他 = host:port
-    };
-
-    struct KeyInfo
-    {
-        std::wstring key;           // 解析出来的 key（可能为空）
-        std::wstring source;        // 面向用户的来源说明
     };
 
     class Config
@@ -37,9 +31,6 @@ namespace ocg
         std::wstring IniDir() const { return m_dir; }
         std::wstring IniPath() const;
 
-        // key 优先级：ini 里填的 > OPENCODE_API_KEY 环境变量 > auth.json 的 opencode-go.key
-        KeyInfo ResolveKey() const;
-
         static int ClampInterval(int sec);
 
     private:
@@ -51,8 +42,4 @@ namespace ocg
         bool m_loaded = false;
         mutable std::mutex m_mutex;
     };
-
-    // 单独暴露出来给选项对话框显示"当前生效来源"
-    std::wstring KeyFromEnv(std::wstring& source);
-    std::wstring KeyFromAuthJson(std::wstring& source);
 }

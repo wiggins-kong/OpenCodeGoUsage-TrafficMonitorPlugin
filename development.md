@@ -4,10 +4,11 @@
 哪些坑已经踩过、下一步能做什么。
 
 - **工程位置**：`D:\Projects\OpenCodeGoUsage\`（独立工程，**不在** TrafficMonitor 仓库里，fork 保持干净）
-- **当前版本**：v1.1（2026-09-15），见 [changelog.md](changelog.md)
+- **当前版本**：v1.2（2026-09-16）已发布（Key 入口改为 opencode.ai/auth、去掉 Key 的隐式来源，
+  见第 8.2 节与 [changelog.md](changelog.md)）
 - **部署目标**：`D:\Programs\TrafficMonitor\plugins\OpenCodeGoUsage.dll`
-- **状态**：功能已完成并部署（v1.1，含占用图，见"验证清单"）。曾经"没有有效 key"的空白已经补上：
-  `plugins\OpenCodeGoUsage.ini` 里的 key 实测 **HTTP 200**（2026-09-15 拿到 rolling 7% / weekly 5% / monthly 94%），
+- **状态**：功能已完成并部署（v1.1 起含占用图，见"验证清单"）。曾经"没有有效 key"的空白已经补上：
+  `plugins\OpenCodeGoUsage.ini` 里的 key 实测 **HTTP 200**（2026-09-16 复验拿到 rolling 6% / weekly 2% / monthly 1%），
   所以真实数据路径可以随时复验。
 
 ---
@@ -37,7 +38,6 @@
 | `.bat` 文件必须是 **CRLF + 纯 ASCII** | Write 工具写出来的是 LF，cmd 会把 `for /f` 拆坏 → 用 heredoc 写再 `sed -i 's/$/\r/'` |
 | 机器上有个失效的旧 Go key（明文躺在 `%APPDATA%\OpenChamber\Cache\Cache_Data\f_00001f`） | **已实测被服务端拒绝**（401 Unauthorized），别再拿它测。<br>**现在有效的 key 在 `D:\Programs\TrafficMonitor\plugins\OpenCodeGoUsage.ini`**（插件选项里填的那份），实测 200 |
 | TM 运行时 `plugins\OpenCodeGoUsage.dll` 被映射，**无法覆盖** | MSBuild 报 `LNK1104: cannot open file ...`（bash 里 `cp` 报 "Device or resource busy"）→ 要么先退出 TM 再编译，要么 `-p:TrafficMonitorPluginDir=D:/.../obj/deploy` 编到别处 |
-| `%USERPROFILE%\.local\share\opencode\auth.json` 不存在 | 插件里那条"自动嗅探 auth.json"路径目前是空转，装了 opencode CLI 才会生效 |
 
 ## 3. 文件地图
 
@@ -49,8 +49,8 @@
 | `src/UsageService.cpp` | WinHTTP 请求、后台线程循环、快照、代理探测、错误文案 | **接口 URL 在文件顶部的 `kPath` 常量**，接口变了改这里 |
 | `src/UsageParse.cpp` | 响应体 → 结构体（纯 C++，不依赖 Windows） | 可独立编译测试，见 `tests/parse_test.cpp` |
 | `src/JsonScan.h` | 极简 JSON 取值（`FindMember` 只在本层找，会整段跳过嵌套值和字符串） | 不引第三方 JSON 库是有意的 |
-| `src/Config.cpp` | ini 读写 + Key 来源解析链 | 配置目录来自宿主 `EI_CONFIG_DIR` |
-| `src/OptionsDlg.cpp` | 原生 Win32 对话框（key / 间隔 / 代理 / 测试连接） | 所有文案在 `WM_INITDIALOG` 里设，`.rc` 只放布局（避免 rc.exe 代码页问题） |
+| `src/Config.cpp` | ini 读写 | 配置目录来自宿主 `EI_CONFIG_DIR` |
+| `src/OptionsDlg.cpp` | 原生 Win32 对话框（key / 间隔 / 代理 / 测试连接） | 所有文案在 `WM_INITDIALOG` 里设，`.rc` 只放布局（避免 rc.exe 代码页问题）；Key 的 `ES_PASSWORD` 必须写在 `.rc` 里（见 8.2） |
 | `src/TmCommon.h` | 字符串/时间/模块工具（`namespace tmu`） | 命名空间**不能叫 `tm`**，会和 `<ctime>` 的 `struct tm` 撞 |
 | `src/TmSdk.h` | 包一层 `include/PluginInterface.h`，就地静音 API 头里的 C4100 | 保持接口头逐字节等于上游 |
 | `include/PluginInterface.h` | TrafficMonitor 插件接口（**原样拷贝**，commit `188b877`，API v8） | 不要改它；源仓库：`D:\Projects\TrafficMonitor` |
@@ -188,11 +188,45 @@ User-Agent: TrafficMonitor-OpenCodeGoUsage/1.0
 `IPluginItem::DrawItemEx()` / `IsCustomDraw()` 那条自绘路线**没有用**，不要再往那儿想：
 一旦自绘，宿主那套「资源占用图 / 显示虚线框 / 占用图颜色 / 柱状图-滚动图」设置就全部失效了。
 
+## 8.2 v1.2：Key 入口改为 opencode.ai/auth（2026-09-16）
+
+opencode 的 Key 管理入口从 console 迁到 <https://opencode.ai/auth>（登录后进「API 密钥」页面），
+本版把插件的入口和提示全部改过去，并去掉 Key 的隐式来源：
+
+- `src/Plugin.cpp` 顶部的 `kConsoleUrl` 改为 `https://opencode.ai/auth`
+  （「打开 OpenCode 控制台」命令用；菜单文字未改）。
+- `OptionsDlg.cpp` 与 `UsageService.cpp` 里所有「opencode.ai/console 的 Keys 页面」
+  文案都改成「opencode.ai/auth 登录后的「API 密钥」页面」。
+- Key 只来自插件选项（ini）：删掉了 `Config::ResolveKey()` 及
+  `KeyFromEnv` / `KeyFromAuthJson`，`Config.cpp` 不再需要 `JsonScan.h`。
+
+### 踩到的坑：运行时补 `ES_PASSWORD` 不生效
+
+v1.1 的写法是在 `WM_INITDIALOG` 里 `SetWindowLongPtrW(hEdit, GWL_STYLE, ... | ES_PASSWORD)`，
+**看起来**有了遮罩，实际完全没生效 —— 截图里整串 Key 仍然明文。
+edit 控件只在**创建时**读这个样式位，事后改 `GWL_STYLE` 不影响它的内部状态。
+
+正确做法：`ES_PASSWORD` 写进 `res/OpenCodeGoUsage.rc` 的 `EDITTEXT` 样式列表（控件创建时就带上），
+运行时只发 `EM_SETPASSWORDCHAR` 换遮罩字符（现在用的是 `L'\u25CF'` 圆点）再 `InvalidateRect`。
+遮罩只影响显示，`GetWindowTextW` 依旧返回真实 Key，所以保存和「测试连接」都不用改。
+**验证方式**：遮罩状态下点「测试连接」必须还能拿到 HTTP 200（已实测）。
+
+### 顺带修掉的文案截断
+
+`IDC_STATIC_HINT2` 原来只有 8 个单位高（一行），而那句提示在 300 单位宽里放不下 →
+`res/OpenCodeGoUsage.rc` 里把它加高到 16（两行），下面几行顺次下移 8、结果框高度减 8。
+
+不涉及条目 ID / 接口 / 数据路径；验证 = 单元测试 + `host_sim.exe` 三轮（真 Key / 坏 Key / 空 Key）
++ 选项对话框截图（有 Key 与空 Key 两种状态）。
+
 ## 9. 明确不要做的事
 
 - 不要引入 MFC / 第三方 JSON 库 / 动态 CRT（本机没 MFC 组件；静态 CRT 是为了宿主目录零依赖）。
 - 不要去读其它应用（OpenChamber / opencode 桌面版）的缓存或本地接口来"自动取 key"——
-  用户明确否决过，而且那是脆弱的隐式依赖。Key 只来自：对话框 ini > 环境变量 > auth.json。
+  用户明确否决过，而且那是脆弱的隐式依赖。Key 只来自插件选项（ini），
+  环境变量 / auth.json 的自动回退也按用户要求删掉了。
+- 不要在选项对话框里明文回显已保存的 Key。遮罩样式 `ES_PASSWORD` 要写在 `.rc` 里：
+  运行时再补 `GWL_STYLE` 是**假生效**（看着加了，实际照样明文，v1.1 就这么错过一次）。
 - 不要把轮询间隔默认值降到 30 秒以下；不要尝试绕过 `rate-limited`。
 - 不要往 `D:\Projects\TrafficMonitor`（宿主的 fork）里写任何东西——本工程与它彻底解耦，
    只拷贝了一份 `PluginInterface.h`。

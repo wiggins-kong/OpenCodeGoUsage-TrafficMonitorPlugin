@@ -3,6 +3,43 @@
 版本号同时体现在插件信息里（`TMI_VERSION`，见 `src/Plugin.cpp`）。
 日期格式：YYYY-MM-DD。
 
+## [1.2] - 2026-09-16
+
+跟随 opencode 官方的 Key 管理入口迁移（console → `opencode.ai/auth`），
+同时去掉 Key 的隐式来源，只剩插件选项这一处。
+
+### 变更
+
+- **「打开 OpenCode 控制台」命令改为打开 <https://opencode.ai/auth>**（原为 `https://opencode.ai/console`）。
+  菜单文字未改，只换了链接。
+- **Key 相关提示全部改指新地址**：没有可用 Key 时的提示、选项对话框的静态提示
+  （`OptionsDlg.cpp`）和 401 错误提示（`UsageService.cpp`）里的
+  「opencode.ai/console 的 Keys 页面」都改成「opencode.ai/auth 登录后的「API 密钥」页面」。
+- **删除 API Key 的自动回退**：Key 只来自插件选项（ini）。
+  删掉"留空则自动用环境变量 `OPENCODE_API_KEY` → `auth.json`"这条解析链，
+  选项对话框里对应的提示文案和「测试连接」的空输入回退也一并移除。
+  没填 Key 时 tooltip 直接提示「未配置 API Key（右键插件条目 → 插件选项，填入 sk- 开头的 Key）」。
+- **选项对话框不再明文回显已保存的 Key**：输入框以圆点显示，输入新值会覆盖，
+  清空后保存则删除。ini 里的存储内容不变。
+
+### 技术要点
+
+- **遮罩必须由 `.rc` 里的 `ES_PASSWORD` 提供**：运行时用 `SetWindowLongPtr(GWL_STYLE)`
+  给已经建好的 edit 控件补这个样式**不生效**（实测仍然明文显示整串 Key），
+  只能发 `EM_SETPASSWORDCHAR` 换遮罩字符。v1.1 那次"以圆点显示"的改动因此是假生效。
+- 遮罩只影响显示：`GetWindowTextW` 仍返回真实 Key，所以「测试连接」和保存逻辑不受影响。
+- 选项对话框的提示文案改为两行高度（`IDC_STATIC_HINT2` 从 8 加高到 16），
+  下面几行顺次下移 8、结果框高度减 8 —— 原来那行提示超出 300 单位宽度会被截断。
+
+### 验证
+
+- 单元测试 **262/262 通过**（解析层未改动）。
+- `host_sim.exe` 三轮全过：真 Key 一轮 9 个条目 / 占用图 / 三个倒计时条目与 tooltip 一致，
+  tooltip 显示「Key：插件选项里填写的 Key」；坏 Key 一轮 401 文案已是新地址；
+  空 Key 一轮 tooltip 显示「未配置 API Key（…）」。
+- 选项对话框真机截图检查：有 Key / 空 Key 两种状态排版正常无截断，Key 以圆点显示；
+  遮罩状态下点「测试连接」仍取到真实 Key 并返回 **HTTP 200**。
+
 ## [1.1] - 2026-09-15
 
 v1.0 当天继续迭代：新增占用图，条目按窗口拆分，测试大幅扩充。

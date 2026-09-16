@@ -75,39 +75,19 @@ namespace ocg
 
         void DoTestConnection(HWND hDlg)
         {
-            const std::wstring typedKey = GetDlgText(hDlg, IDC_EDIT_KEY);
-            const std::wstring proxy = GetDlgText(hDlg, IDC_EDIT_PROXY);
-
-            // 输入框为空时，跟实际运行一样回退到环境变量/auth.json
-            std::wstring key = typedKey;
-            std::wstring keySource = L"输入框";
-            if (key.empty())
-            {
-                std::wstring src;
-                key = KeyFromEnv(src);
-                if (!key.empty())
-                {
-                    keySource = src;
-                }
-                else
-                {
-                    key = KeyFromAuthJson(src);
-                    keySource = key.empty() ? std::wstring() : src;
-                }
-            }
+            const std::wstring key = GetDlgText(hDlg, IDC_EDIT_KEY);
 
             if (key.empty())
             {
                 SetDlgText(hDlg, IDC_EDIT_RESULT,
-                           L"没有可用的 Key：输入框为空，环境变量 OPENCODE_API_KEY 未设置，"
-                           L"auth.json 里也没有 opencode-go 的 key。\r\n"
-                           L"请到 opencode.ai/console 的 Keys 页面复制一个 sk- 开头的 Key 填进上面的输入框。");
+                           L"输入框为空：请填入 sk- 开头的 Key（在 opencode.ai/auth 登录后转到「API 密钥」页面复制）。");
                 return;
             }
 
             SetDlgText(hDlg, IDC_EDIT_RESULT, L"正在请求 https://opencode.ai/zen/go/v1/usage …（最多等 10 秒）");
             ::UpdateWindow(hDlg);
 
+            const std::wstring proxy = GetDlgText(hDlg, IDC_EDIT_PROXY);
             UsageResult parsed;
             std::wstring err;
             std::wstring proxyUsed;
@@ -128,7 +108,7 @@ namespace ocg
             {
                 out = L"失败：" + err + L"\r\n代理：" + proxyUsed;
             }
-            out += L"\r\nKey 来源：" + keySource;
+            out += L"\r\nKey 来源：输入框";
             SetDlgText(hDlg, IDC_EDIT_RESULT, out);
         }
 
@@ -154,20 +134,24 @@ namespace ocg
                 ::SetDlgItemTextW(hDlg, IDOK, L"确定");
                 ::SetDlgItemTextW(hDlg, IDCANCEL, L"取消");
 
-                SetDlgText(hDlg, IDC_STATIC_HINT,
-                           L"留空则自动用：环境变量 OPENCODE_API_KEY → auth.json");
                 SetDlgText(hDlg, IDC_STATIC_HINT2,
-                           L"Key 在 opencode.ai/console 的 Keys 页面创建；「测试连接」用输入框里的值。");
+                           L"Key 在 opencode.ai/auth 登录后的「API 密钥」页面创建；"
+                           L"「测试连接」只验证输入框里当前的值，不会保存。");
                 SetDlgText(hDlg, IDC_EDIT_RESULT, L"点「测试连接」立刻验证 Key 和网络。");
 
+                // 已保存的 Key 不回显明文：ES_PASSWORD 在 .rc 里（运行时改窗口样式对已建好的
+                // edit 控件不生效），这里只把遮罩字符换成圆点；GetDlgText 仍能取到真实值。
+                const HWND hKeyEdit = ::GetDlgItem(hDlg, IDC_EDIT_KEY);
+                ::SendMessageW(hKeyEdit, EM_SETPASSWORDCHAR, (WPARAM)L'\u25CF', 0);
+                ::InvalidateRect(hKeyEdit, nullptr, TRUE);
                 ::SetDlgItemTextW(hDlg, IDC_EDIT_KEY, ctx->settings.api_key.c_str());
                 ::SetDlgItemTextW(hDlg, IDC_EDIT_INTERVAL, std::to_wstring(ctx->settings.interval_sec).c_str());
                 ::SetDlgItemTextW(hDlg, IDC_EDIT_PROXY, ctx->settings.proxy.c_str());
 
-                std::wstring src = L"当前生效：" + Config::Instance().ResolveKey().source;
-                if (!ctx->settings.api_key.empty())
-                    src = L"当前生效：插件选项里填写的 Key（保存后生效）";
-                SetDlgText(hDlg, IDC_STATIC_KEY_SOURCE, src);
+                SetDlgText(hDlg, IDC_STATIC_KEY_SOURCE,
+                           ctx->settings.api_key.empty()
+                               ? L"尚未保存 Key"
+                               : L"已保存 Key（输入框以圆点显示；输入新值会覆盖，清空后保存则删除）");
                 return TRUE;
             }
 

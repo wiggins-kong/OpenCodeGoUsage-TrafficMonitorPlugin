@@ -329,16 +329,15 @@ namespace ocg
 
     void UsageService::DoFetch()
     {
-        const KeyInfo ki = Config::Instance().ResolveKey();
+        const std::wstring key = Config::Instance().Get().api_key;
         {
-            // Key 来源只在这里刷新（ResolveKey 会读环境变量甚至 auth.json，不适合每帧调用）
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_snap.key_source = ki.source;
+            m_snap.key_source = key.empty() ? std::wstring() : L"插件选项里填写的 Key";
         }
 
-        if (ki.key.empty())
+        if (key.empty())
         {
-            ApplyFailure(L"未配置 API Key（右键插件条目 → 插件选项，或设置环境变量 OPENCODE_API_KEY）",
+            ApplyFailure(L"未配置 API Key（右键插件条目 → 插件选项，填入 sk- 开头的 Key）",
                          std::wstring());
             return;
         }
@@ -348,7 +347,7 @@ namespace ocg
         UsageResult parsed;
         std::wstring err;
         std::wstring proxy_used;
-        if (!FetchNow(ki.key, proxy_setting, parsed, err, proxy_used))
+        if (!FetchNow(key, proxy_setting, parsed, err, proxy_used))
         {
             // 失败时也要把代理写进快照：连不上时第一件要确认的就是走没走代理、走的哪个
             ApplyFailure(err, proxy_used);
@@ -453,7 +452,7 @@ namespace ocg
                 msg += L"：" + detail;
 
             if (parsed.http_status == 401)
-                msg += L"（Key 无效或已被删除，去 opencode.ai/console 的 Keys 页面重新生成）";
+                msg += L"（Key 无效或已被删除，到 opencode.ai/auth 登录后的「API 密钥」页面重新生成）";
             else if (parsed.http_status == 403)
                 msg += L"（这个 Key 所在的工作区没有 OpenCode Go 订阅）";
 

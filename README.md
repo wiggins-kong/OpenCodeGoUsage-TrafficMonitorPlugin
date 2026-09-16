@@ -88,14 +88,12 @@ Authorization: Bearer <Go 的 API Key，sk- 开头>
 
 ## 配置 API Key
 
-按优先级从三处取，取到第一个非空的就用：
+Key 只有一处来源：**插件选项里填写的**（右键插件条目 → “插件选项”，或插件管理对话框里的“插件选项”）
+→ 保存到 `<插件配置目录>\OpenCodeGoUsage.ini`（便携模式下就是 `plugins\OpenCodeGoUsage.ini`）。
 
-1. **插件选项里填的**（右键插件条目 → “插件选项”，或插件管理对话框里的“插件选项”）
-   → 存到 `<插件配置目录>\OpenCodeGoUsage.ini`（便携模式下就是 `plugins\OpenCodeGoUsage.ini`）
-2. 环境变量 `OPENCODE_API_KEY`
-3. `%USERPROFILE%\.local\share\opencode\auth.json` 里 `opencode-go.key`（装了 opencode CLI 才会有）
+选项对话框里已保存的 Key 以圆点显示，不回显明文；输入新值会覆盖，清空后保存则删除。
 
-Key 在 <https://opencode.ai/console> 的 **Keys** 页面创建。
+Key 在 <https://opencode.ai/auth> 登录后的 **「API 密钥」** 页面创建。
 选项对话框里的 **「测试连接」** 会立刻用输入框里当前的值请求一次并显示原始结果（不会保存），
 换机器排查时很好用。
 
@@ -120,11 +118,11 @@ Key 在 <https://opencode.ai/console> 的 **Keys** 页面创建。
 
 | tooltip 里的提示 | 含义 / 怎么办 |
 |---|---|
-| `401 AuthError：Unauthorized` | Key 无效或已被删除 → 去 console 的 Keys 页面重新生成一个 |
+| `401 AuthError：Unauthorized` | Key 无效或已被删除 → 到 <https://opencode.ai/auth> 登录后的「API 密钥」页面重新生成一个 |
 | `403 EntitlementError` | 这个 Key 所在的工作区没有 OpenCode Go 订阅 |
 | `无法连接 opencode.ai` | 需要走代理 → 在插件选项的“代理”里填 `127.0.0.1:端口` |
 | `DNS 解析失败` | 同上，或网络本身有问题 |
-| `未配置 API Key` | 三处都没有 Key → 在插件选项里填一个 |
+| `未配置 API Key` | 插件选项里没填 Key → 右键插件条目 → “插件选项”，填一个 |
 | 条目一直显示 `--` | 一次都没成功过，看 tooltip 里的错误行 |
 
 ## 代码结构
@@ -137,7 +135,7 @@ Key 在 <https://opencode.ai/console> 的 **Keys** 页面创建。
 | `src/UsageParse.cpp` | 响应解析（纯 C++，不依赖 Windows，可独立测试） |
 | `src/GraphValue.h` | 百分比 → 占用图的值（纯 C++；宿主的 `int(value*100)` 截断会让朴素的 `n/100.0f` 在 53、59 上少 1） |
 | `src/JsonScan.h` | 极简 JSON 取值（不引第三方库，只读需要的几个字段） |
-| `src/Config.cpp` | ini 读写 + Key 来源解析链 |
+| `src/Config.cpp` | ini 读写 |
 | `src/OptionsDlg.cpp` | 原生 Win32 选项对话框 |
 | `include/PluginInterface.h` | TrafficMonitor 插件接口头（原样拷贝，见下） |
 
@@ -172,13 +170,13 @@ tests\build_host_sim.bat     编译并运行 host_sim.exe —— 模拟宿主加
 - 只做 OpenCode Go 三个窗口。**不做**美元金额估算、Zen 计费余额、Claude/Codex 等其它厂商额度、多账号。
 - 该用量接口**没有公开文档**（是控制台前端在用的接口），opencode 改版就可能失效。
   失效时插件会显示错误而不是静默显示错数据；接口地址是 `src/UsageService.cpp` 顶部的 `kPath` 常量，改一行即可。
-- 无论 key 走哪条来源，轮询的都是**你自己账号**的用量，默认 60 秒一次，并带自己的 User-Agent；
+- 轮询的是**你自己账号**的用量，默认 60 秒一次，并带自己的 User-Agent；
   若某个窗口已被限流，插件只在 tooltip 里标注，不会尝试绕过。
 - 界面只有中文。
 
 ## 另见
 
-- [changelog.md](changelog.md) —— 更新日志（当前 v1.0）
+- [changelog.md](changelog.md) —— 更新日志（当前 v1.2）
 - [development.md](development.md) —— 开发交接文档：架构、环境约束、验证清单、
   接口契约、下一步可做的事、明确不要做的事
 
